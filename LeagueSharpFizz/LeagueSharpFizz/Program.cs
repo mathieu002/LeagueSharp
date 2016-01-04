@@ -89,13 +89,13 @@ namespace MathFizz
             var customCombo = new Menu("CustomCombo", "CustomCombo").SetFontStyle(FontStyle.Bold, fontColor: SharpDX.Color.Yellow);
             Menu.AddSubMenu(customCombo);
             customCombo.AddItem(new MenuItem("lateGameZhonyaCombo", "E to gapclose RWQ zhonya").SetValue(new KeyBind("G".ToCharArray()[0], KeyBindType.Press)));
-            customCombo.AddItem(new MenuItem("QminionREWCombo", "Q minion to gapclose REW zhonya").SetValue(new KeyBind("H".ToCharArray()[0], KeyBindType.Press)));
+            customCombo.AddItem(new MenuItem("QminionREWCombo", "Q minion to gapclose REW").SetValue(new KeyBind("H".ToCharArray()[0], KeyBindType.Press)));
             //Misc Menu
             var miscMenu = new Menu("Misc", "Misc");
             Menu.AddSubMenu(miscMenu);
             miscMenu.AddItem(new MenuItem("drawQ", "Draw Q range").SetValue(false));
             miscMenu.AddItem(new MenuItem("drawAa", "Draw Autoattack range").SetValue(false));
-            miscMenu.AddItem(new MenuItem("drawMinionQCombo", "Draw drawMinionQCombo helper").SetValue(true));
+            miscMenu.AddItem(new MenuItem("drawMinionQCombo", "Draw QminionREWCombo helper").SetValue(true));
             miscMenu.AddItem(new MenuItem("Flee", "Flee Key").SetValue(new KeyBind("Q".ToCharArray()[0], KeyBindType.Press)));
             miscMenu.AddItem(new MenuItem("useFleeE", "Use E to Flee").SetValue(true));
             //Author Menu
