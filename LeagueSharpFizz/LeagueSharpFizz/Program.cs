@@ -426,7 +426,7 @@ namespace MathFizz
             {
                 Orbwalking.Orbwalk(m ?? null, Game.CursorPos);
                 var distance = Player.Distance(m.Position);
-                if (distance < (Q.Range + R.Range + 100)) 
+                if (distance < (Q.Range + R.Range)) 
                 { 
                     //Check if HeroTarget is in Q.Range then Q 
                     if (Player.Distance(m.Position) < Q.Range)
@@ -437,7 +437,7 @@ namespace MathFizz
                         }
                     }
                     //Check if minions in rectangle is in Q.Range then Q
-                    var mins = MinionManager.GetMinions(Q.Range + 200);
+                    var mins = MinionManager.GetMinions(Q.Range);
                     foreach (Obj_AI_Base min in mins){
                         if (RRectangle.IsInside(min.Position)) 
                         {
