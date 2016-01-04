@@ -8,7 +8,7 @@ using LeagueSharp.Common;
 using Color = System.Drawing.Color;
 using System.Drawing;
 
-namespace NoobFizz
+namespace MathFizz
 {
     class Program
     {

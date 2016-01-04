@@ -7,6 +7,5 @@ C:\Users\Own\Desktop\LeagueSharp\LeagueSharpFizz\LeagueSharpFizz\bin\x86\Release
 C:\Users\Own\Desktop\LeagueSharp\LeagueSharpFizz\LeagueSharpFizz\bin\x86\Release\SharpDX.Direct3D9.dll
 C:\Users\Own\Desktop\LeagueSharp\LeagueSharpFizz\LeagueSharpFizz\bin\x86\Release\clipper_library.dll
 C:\Users\Own\Desktop\LeagueSharp\LeagueSharpFizz\LeagueSharpFizz\bin\x86\Release\LeagueSharp.Sandbox.dll
-C:\Users\Own\Desktop\LeagueSharp\LeagueSharpFizz\LeagueSharpFizz\obj\x86\Release\Math Fizz.csprojResolveAssemblyReference.cache
 C:\Users\Own\Desktop\LeagueSharp\LeagueSharpFizz\LeagueSharpFizz\obj\x86\Release\LeagueSharpFizz.exe
 C:\Users\Own\Desktop\LeagueSharp\LeagueSharpFizz\LeagueSharpFizz\obj\x86\Release\LeagueSharpFizz.pdb
