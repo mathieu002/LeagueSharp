@@ -43,7 +43,6 @@ namespace MathFizz
         private static int lastMovementTick = 0;
         private static float lastRCastTick = 0;
         private static float RCooldownTimer = 0;
-        private static string lastSpell = string.Empty;
         private static bool doOnce = true;
         private static SharpDX.Vector3 castPosition = new SharpDX.Vector3();
         private static bool enoughManaEWQ = false;
