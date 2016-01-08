@@ -26,6 +26,8 @@ namespace MathFizz
         public static Spell E;
         public static Spell R;
         public static Spell F;
+        public static Spell D;
+        public static Spell I;
 
         private static Items.Item tiamat;
         private static Items.Item hydra;
@@ -33,6 +35,9 @@ namespace MathFizz
         private static Items.Item botrk;
         private static Items.Item hextech;
         private static Items.Item zhonya;
+        public delegate double SpellDamageDelegate(Obj_AI_Base source, Obj_AI_Base target, int level);
+        private static Utility.HpBarDamageIndicator.DamageToUnitDelegate damageToUnit;
+        private static readonly SharpDX.Vector2 BarOffset = new SharpDX.Vector2(10, 25);
         public static string hitchanceR = string.Empty;
         public static string debugText = string.Empty;
         public static string debugText2 = string.Empty;
@@ -67,6 +72,8 @@ namespace MathFizz
             E = new Spell(SpellSlot.E, 400);
             R = new Spell(SpellSlot.R, 1300);
             F = new Spell(Player.GetSpellSlot("summonerflash"), 425);
+            D = new Spell(Player.GetSpellSlot("summonerignite"), 600);
+            I = new Spell(Player.GetSpellSlot("summonersmite"), 500);
 
             E.SetSkillshot(0.25f, 330, float.MaxValue, false, SkillshotType.SkillshotCircle);
             R.SetSkillshot(0.25f, 80, 600, true, SkillshotType.SkillshotLine);
@@ -92,7 +99,7 @@ namespace MathFizz
             harass.AddItem(new MenuItem("useharassE", "Use E").SetValue(true));
             harass.AddItem(new MenuItem("harassmana", "Min Harass Mana").SetValue(new Slider(0)));
             harass.AddItem(new MenuItem("useEWQ", "Harass with E(W)Q Combo").SetValue(false));
-            harass.AddItem(new MenuItem("recom", "Recommended to disable 'Priorize farm to harass' in Orbwalker > Misc"));
+            harass.AddItem(new MenuItem("recom", "Recommended to disable 'Priorize farm to harass' in Orbwalker > Misc").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
             //LaneClear Menu
             var lc = new Menu("Laneclear", "Laneclear");
             Menu.AddSubMenu(lc);
@@ -110,11 +117,11 @@ namespace MathFizz
             //CustomCombo Menu
             var customCombo = new Menu("CustomCombo (require a selected target!)", "CustomCombo").SetFontStyle(FontStyle.Bold, fontColor: SharpDX.Color.Yellow);
             Menu.AddSubMenu(customCombo);
-            customCombo.AddItem(new MenuItem("info","How to use CustomCombo's :").SetFontStyle(FontStyle.Bold, fontColor: SharpDX.Color.Red));
-            customCombo.AddItem(new MenuItem("info1", "1) Make sure every spells used in the combo are up.").SetFontStyle(FontStyle.Bold, fontColor: SharpDX.Color.Red));
-            customCombo.AddItem(new MenuItem("info2", "2) Select your Target.").SetFontStyle(FontStyle.Bold, fontColor: SharpDX.Color.Red));
-            customCombo.AddItem(new MenuItem("info3", "3) Press combo key until every spells are used.").SetFontStyle(FontStyle.Bold, fontColor: SharpDX.Color.Red));
-            customCombo.AddItem(new MenuItem("info4", "4) Press space key afterwards for ideal follow up.").SetFontStyle(FontStyle.Bold, fontColor: SharpDX.Color.Red));
+            customCombo.AddItem(new MenuItem("info", "How to use CustomCombo's :").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
+            customCombo.AddItem(new MenuItem("info1", "1) Make sure every spells used in the combo are up.").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
+            customCombo.AddItem(new MenuItem("info2", "2) Select your Target.").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
+            customCombo.AddItem(new MenuItem("info3", "3) Press combo key until every spells are used.").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
+            customCombo.AddItem(new MenuItem("info4", "4) Press space key afterwards for ideal follow up.").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
             customCombo.AddItem(new MenuItem("lateGameZhonyaCombo", "EE to gapclose RWQ zhonya").SetValue(new KeyBind("G".ToCharArray()[0], KeyBindType.Press)));
             customCombo.AddItem(new MenuItem("QminionREWCombo", "Q minion to gapclose REW").SetValue(new KeyBind("H".ToCharArray()[0], KeyBindType.Press)));
             customCombo.AddItem(new MenuItem("EFlashCombo", "E Flash on target RWQ zhonya").SetValue(new KeyBind("J".ToCharArray()[0], KeyBindType.Press)));
@@ -122,6 +129,7 @@ namespace MathFizz
             //Misc Menu
             var miscMenu = new Menu("Misc", "Misc");
             Menu.AddSubMenu(miscMenu);
+            miscMenu.AddItem(new MenuItem("drawComboDamage", "Draw predicted combo damage on target").SetValue(false));
             miscMenu.AddItem(new MenuItem("drawQ", "Draw Q range").SetValue(false));
             miscMenu.AddItem(new MenuItem("drawMinionQCombo", "Draw QminionREWCombo helper").SetValue(false));
             miscMenu.AddItem(new MenuItem("drawR", "Draw R Prediction (Selected Target Only)").SetValue(false));
@@ -130,8 +138,9 @@ namespace MathFizz
             //Author Menu
             var about = new Menu("About", "About").SetFontStyle(FontStyle.Regular, fontColor: SharpDX.Color.Gray);
             Menu.AddSubMenu(about);
-            about.AddItem(new MenuItem("Author", "Author: mathieu002"));
-            about.AddItem(new MenuItem("Credits", "Credits: ChewyMoon,1Shinigamix3,jQuery,Kurisu"));
+            about.AddItem(new MenuItem("Author", "Author: mathieu002").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.White));
+            about.AddItem(new MenuItem("Credits", "Credits: ChewyMoon,1Shinigamix3,jQuery,Kurisu,Hellsing,detuks"));
+            about.AddItem(new MenuItem("Upvote", "Remember to upvote the assembly if you like it ! GL & HF").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
 
             hydra = new Items.Item(3074, 185);
             tiamat = new Items.Item(3077, 185);
@@ -173,7 +182,6 @@ namespace MathFizz
                             {
                                 if (ondash && canCastZhonyaOnDash)
                                 {
-                                    //debugText2 = "E from OnDoCast: " + Game.Time;
                                     Utility.DelayAction.Add(1700, () =>
                                     {
                                         zhonya.Cast();
@@ -181,7 +189,6 @@ namespace MathFizz
                                 }
                                 if (afterdash && canCastZhonyaOnDash)
                                 {
-                                    //debugText2 = "E from OnDoCast: " + Game.Time;
                                     Utility.DelayAction.Add(1700, () =>
                                     {
                                         zhonya.Cast();
@@ -189,7 +196,6 @@ namespace MathFizz
                                 }
                                 if (gapclose && canCastZhonyaOnDash)
                                 {
-                                    //debugText2 = "E from OnDoCast: " + Game.Time;
                                     Utility.DelayAction.Add(1700, () =>
                                     {
                                         zhonya.Cast();
@@ -224,8 +230,6 @@ namespace MathFizz
                             {
                                 SharpDX.Vector3 castPosition = E.GetPrediction(target, false, 1).CastPosition;
                                 E.Cast(castPosition);
-                                //Player.IssueOrder(GameObjectOrder.AttackUnit, target);
-                                //debugText2 = "E from harass orbwalker" + Game.Time;
                                 Utility.DelayAction.Add(775, () => 
                                 {
                                     if (!W.IsReady() && !Q.IsReady() && Player.Distance(target.Position) > 330 && Player.Distance(target.Position) <= 400 + 270)
@@ -273,6 +277,28 @@ namespace MathFizz
                 CollisionableObjects[] collisionCheck = { CollisionableObjects.YasuoWall};
                 Render.Circle.DrawCircle(R.GetPrediction(SelectedTarget, false, 1, collisionCheck).CastPosition.Extend(Player.Position, -330), 250, Color.Blue);
             }
+            if (Menu.Item("drawComboDamage").GetValue<bool>()) 
+            {
+                foreach (var unit in HeroManager.Enemies.Where(u => u.IsValidTarget() && u.IsHPBarRendered))
+                {
+                    // Instantiate the delegate.
+                    var damage = TotalComboDamage(unit);
+                    if(damage <= 0)
+                    {
+                        continue;
+                    }
+                    var damagePercentage = ((unit.Health - damage) > 0 ? (unit.Health - damage) : 0) / unit.MaxHealth;
+                    var currentHealthPercentage = unit.Health / unit.MaxHealth;
+
+                    // Calculate start and end point of the bar indicator
+                    var startPoint = new SharpDX.Vector2((int)(unit.HPBarPosition.X + BarOffset.X + damagePercentage * 104), (int)(unit.HPBarPosition.Y + BarOffset.Y) - 5);
+                    var endPoint = new SharpDX.Vector2((int)(unit.HPBarPosition.X + BarOffset.X + currentHealthPercentage * 104) + 1, (int)(unit.HPBarPosition.Y + BarOffset.Y) - 5);
+
+                    Color bar = Color.FromArgb(200, 255, 199, 0);
+                    // Draw the line
+                    Drawing.DrawLine(startPoint, endPoint, 9, bar);
+                }
+            }
         }
         #endregion
 
@@ -283,7 +309,6 @@ namespace MathFizz
             {
                 return;
             }
-
             SelectedTarget = TargetSelector.SelectedTarget;
 
             if (SelectedTarget.IsValidTarget())
@@ -429,30 +454,77 @@ namespace MathFizz
             var veryhigh = (Menu.Item("HitChancewR").GetValue<StringList>().SelectedIndex == 2);
             var medium = (Menu.Item("HitChancewR").GetValue<StringList>().SelectedIndex == 0);
             var high = (Menu.Item("HitChancewR").GetValue<StringList>().SelectedIndex == 1);
-
+            //Check YasuoWall
             CollisionableObjects[] collisionCheck = new CollisionableObjects[1];
             collisionCheck[0] = CollisionableObjects.YasuoWall;
             HitChance hitChance = R.GetPrediction(target, false, -1, collisionCheck).Hitchance;
             SharpDX.Vector3 endPosition = R.GetPrediction(target, false, 1, collisionCheck).CastPosition.Extend(Player.Position, -330);
-            if (medium && hitChance >= HitChance.Medium)
+            //Check for spellshields
+            if (!target.HasBuff("summonerbarrier") || !target.HasBuff("BlackShield") || !target.HasBuff("SivirShield") || !target.HasBuff("BansheesVeil") || !target.HasBuff("ShroudofDarkness")) 
             {
-                R.Cast(endPosition);
+                if (medium && hitChance >= HitChance.Medium)
+                {
+                    R.Cast(endPosition);
+                }
+                if (high && hitChance >= HitChance.High)
+                {
+                    R.Cast(endPosition);
+                }
+                if (veryhigh && hitChance >= HitChance.VeryHigh)
+                {
+                    R.Cast(endPosition);
+                }
             }
-            if (high && hitChance >= HitChance.High)
+        }
+        #endregion
+
+        #region TotalComboDamage
+        private static float TotalComboDamage(Obj_AI_Hero target)
+        {
+            double damage = 0;
+            double predamage = 0;
+            if (Q.IsReady())
             {
-                R.Cast(endPosition);
+                predamage = Player.GetSpellDamage(target, SpellSlot.Q);
+                damage += Damage.CalcDamage(Player, target, Damage.DamageType.Magical, predamage);
             }
-            if (veryhigh && hitChance >= HitChance.VeryHigh)
+            if (W.IsReady())
             {
-                R.Cast(endPosition);
+                predamage = Player.GetSpellDamage(target, SpellSlot.W);
+                damage += Damage.CalcDamage(Player, target, Damage.DamageType.Magical, predamage);
             }
+            if (E.IsReady())
+            {
+                predamage = Player.GetSpellDamage(target, SpellSlot.E);
+                damage += Damage.CalcDamage(Player, target, Damage.DamageType.Magical, predamage);
+            }
+            if (R.IsReady())
+            {
+                predamage = Player.GetSpellDamage(target, SpellSlot.R);
+                damage += Damage.CalcDamage(Player, target, Damage.DamageType.Magical, predamage);
+            }
+            if (D.IsReady()) 
+            {
+                //ignite
+                predamage = Player.GetSummonerSpellDamage(target, Damage.SummonerSpell.Ignite);
+                damage += Damage.CalcDamage(Player, target, Damage.DamageType.True, predamage);
+            }
+            if (I.IsReady())
+            {
+                //smite
+                predamage = Player.GetSummonerSpellDamage(target, Damage.SummonerSpell.Smite);
+                damage += Damage.CalcDamage(Player, target, Damage.DamageType.True, predamage);
+            }
+            predamage = Player.GetAutoAttackDamage(target);
+            damage += Damage.CalcDamage(Player, target, Damage.DamageType.Physical, predamage);
+            return (float)damage;
         }
         #endregion
 
         #region Lane
         private static void Lane()
         {
-            if (ObjectManager.Player.ManaPercent < Menu.Item("lanemana").GetValue<Slider>().Value)
+            if (ObjectManager.Player.ManaPercent <= Menu.Item("lanemana").GetValue<Slider>().Value)
             {
                 return; 
             }
@@ -486,7 +558,7 @@ namespace MathFizz
         #region Jungle
         private static void Jungle()
         {
-            if (ObjectManager.Player.ManaPercent < Menu.Item("junglemana").GetValue<Slider>().Value)
+            if (ObjectManager.Player.ManaPercent <= Menu.Item("junglemana").GetValue<Slider>().Value)
             {
                 return;
             }
@@ -521,7 +593,7 @@ namespace MathFizz
             {
                 m = TargetSelector.GetTarget(530, TargetSelector.DamageType.Magical);
             }
-            if (ObjectManager.Player.ManaPercent < Menu.Item("harassmana").GetValue<Slider>().Value)
+            if (ObjectManager.Player.ManaPercent <= Menu.Item("harassmana").GetValue<Slider>().Value)
             {
                 return;
             }
@@ -661,14 +733,12 @@ namespace MathFizz
                 });
                 if (ondash && useZhonya && canCastZhonyaOnDash)
                 {
-                    //debugText2 = "E from Combo()" + Game.Time;
                     Utility.DelayAction.Add(2365, () => {
                         zhonya.Cast();
                     });
                 }
                 if (gapclose && useZhonya && canCastZhonyaOnDash)
                 {
-                    //debugText2 = "E from Combo()" + Game.Time;
                     Utility.DelayAction.Add(2365, () =>
                     {
                         zhonya.Cast();
@@ -676,7 +746,6 @@ namespace MathFizz
                 }
                 if (afterdash && useZhonya && canCastZhonyaOnDash)
                 {
-                    //debugText2 = "E from Combo()" + Game.Time;
                     Utility.DelayAction.Add(2365, () =>
                     {
                         zhonya.Cast();
