@@ -20,7 +20,6 @@ namespace MathFizz
         //Menu
         public static Menu Menu;
         //Spells
-        public static List<Spell> SpellList = new List<Spell>();
         public static Spell Q;
         public static Spell W;
         public static Spell E;
@@ -35,8 +34,7 @@ namespace MathFizz
         private static Items.Item botrk;
         private static Items.Item hextech;
         private static Items.Item zhonya;
-        public delegate double SpellDamageDelegate(Obj_AI_Base source, Obj_AI_Base target, int level);
-        private static Utility.HpBarDamageIndicator.DamageToUnitDelegate damageToUnit;
+
         private static readonly SharpDX.Vector2 BarOffset = new SharpDX.Vector2(10, 25);
         public static string hitchanceR = string.Empty;
         public static string debugText = string.Empty;
@@ -46,8 +44,11 @@ namespace MathFizz
         private static bool orbwalkToTarget3 = false;
         private static bool isEProcessed = false;
         private static int lastMovementTick = 0;
+        private static int lastSliderValue = 0;
         private static float lastRCastTick = 0;
         private static float RCooldownTimer = 0;
+        private static SharpDX.Vector3 harassQCastedPosition = new SharpDX.Vector3();
+        private static SharpDX.Vector3 basePosition = new SharpDX.Vector3();
         private static bool doOnce = true;
         private static SharpDX.Vector3 castPosition = new SharpDX.Vector3();
         private static bool enoughManaEWQ = false;
@@ -56,6 +57,7 @@ namespace MathFizz
         private static SharpDX.Vector3 startPos = new SharpDX.Vector3();
         private static Obj_AI_Hero SelectedTarget;
         private static Geometry.Polygon.Rectangle RRectangle;
+        private static int ping = 50;
         #endregion
 
         private static void Main(string[] args)
@@ -86,58 +88,82 @@ namespace MathFizz
             //Combo Menu
             var combo = new Menu("Combo", "Combo");
             Menu.AddSubMenu(combo);
-            combo.AddItem(new MenuItem("ComboMode", "ComboMode").SetValue(new StringList(new[] { "R to gapclose", "R on Dash", "R after Dash" })));
-            combo.AddItem(new MenuItem("HitChancewR", "R Hitchance").SetValue(new StringList(new[] { "Medium", "High", "Very High" })));
-            combo.AddItem(new MenuItem("targetMinHPforR", "Minimum Enemy HP(in %) to use R").SetValue(new Slider(35)));
-            combo.AddItem(new MenuItem("useZhonya", "Use Zhonya in combo (Recommended for lategame)").SetValue(true));
+            combo.AddItem(new MenuItem("ComboText","Combo").SetTooltip("A higher R hitchance leads to a less often casting of R but more chances to hit."));
+            combo.AddItem(new MenuItem("ComboMode", "Combo mode").SetValue(new StringList(new[] { "R to gapclose", "R on Dash", "R after Dash" })));
+            combo.AddItem(new MenuItem("HitChancewR", "R hitchance").SetValue(new StringList(new[] { "Medium", "High", "Very High" })));
+            combo.AddItem(new MenuItem("targetMinHPforR", "Minimum enemy HP(in %) to use R").SetValue(new Slider(35)).SetTooltip("Minimum HP percentage the enemy needs for R to be casted"));
+            combo.AddItem(new MenuItem("useZhonya", "Use Zhonya in combo (Recommended for lategame)").SetValue(true).SetTooltip("Will use Zhonya if owned and active, on each kind of combo."));
             //Harass Menu
             var harass = new Menu("Harass", "Harass");
             Menu.AddSubMenu(harass);
-            harass.AddItem(new MenuItem("texttt", "Harass WQ AA E"));
+            harass.AddItem(new MenuItem("harassText", "Harass").SetTooltip("E Mode will not work with EWQ Combo. 'E to mouse position' will cast E towards your mouse, if your mouse position is out of range of your first E damage, it will also cast the second E towards your mouse."));
+            harass.AddItem(new MenuItem("texttt", "Harass with WQ AA E combo").SetTooltip("Will use WQ if you are in Q range. Then E after an AutoAttack."));
+            harass.AddItem(new MenuItem("harassEMode", "E mode").SetValue(new StringList(new[] { "E to mouse position", "E to hit the enemy", "E to comeback", "E twice to comeback" })));
             harass.AddItem(new MenuItem("useharassQ", "Use Q").SetValue(true));
+            Menu.Item("useharassQ").ShowItem = false;
             harass.AddItem(new MenuItem("useharassW", "Use W").SetValue(true));
+            Menu.Item("useharassW").ShowItem = false;
             harass.AddItem(new MenuItem("useharassE", "Use E").SetValue(true));
-            harass.AddItem(new MenuItem("harassmana", "Min Harass Mana").SetValue(new Slider(0)));
-            harass.AddItem(new MenuItem("useEWQ", "Harass with E(W)Q Combo").SetValue(false));
+            Menu.Item("useharassE").ShowItem = false;
+            harass.AddItem(new MenuItem("harassmana", "Minimum mana to harass in %").SetValue(new Slider(0)));
+            harass.AddItem(new MenuItem("useEWQ", "Harass with E(W)Q Combo").SetValue(false).SetTooltip("If you have enough mana for E(W)Q combo and spells are not on cooldown. Will use E (behind the target but in range for the damage) then W AutoAttack and Q to come back."));
             harass.AddItem(new MenuItem("recom", "Recommended to disable 'Priorize farm to harass' in Orbwalker > Misc").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
             //LaneClear Menu
             var lc = new Menu("Laneclear", "Laneclear");
             Menu.AddSubMenu(lc);
-            lc.AddItem(new MenuItem("laneclearQ", "Use Q to LaneClear").SetValue(false));
-            lc.AddItem(new MenuItem("laneclearW", "Use W to LaneClear").SetValue(false));
-            lc.AddItem(new MenuItem("laneclearE", "Use E to LaneClear").SetValue(false));
-            lc.AddItem(new MenuItem("lanemana", "Min Farm Mana").SetValue(new Slider(0)));
+            lc.AddItem(new MenuItem("LaneclearText","Laneclear"));
+            lc.AddItem(new MenuItem("laneclearQ", "Use Q to laneclear").SetValue(false));
+            lc.AddItem(new MenuItem("laneclearW", "Use W to laneclear").SetValue(false));
+            lc.AddItem(new MenuItem("laneclearE", "Use E to laneclear").SetValue(false));
+            lc.AddItem(new MenuItem("lanemana", "Minimum mana to farm in %").SetValue(new Slider(0)));
             //JungleClear Menu
-            var jungle = new Menu("JungleClear", "JungleClear");
+            var jungle = new Menu("Jungleclear", "Jungleclear");
             Menu.AddSubMenu(jungle);
-            jungle.AddItem(new MenuItem("jungleclearQ", "Use Q to JungleClear").SetValue(false));
-            jungle.AddItem(new MenuItem("jungleclearW", "Use W to JungleClear").SetValue(false));
-            jungle.AddItem(new MenuItem("jungleclearE", "Use E to JungleClear").SetValue(false));
-            jungle.AddItem(new MenuItem("junglemana", "Min Jungle Mana").SetValue(new Slider(0)));
+            jungle.AddItem(new MenuItem("JungleclearText", "Jungleclear"));
+            jungle.AddItem(new MenuItem("jungleclearQ", "Use Q to jungleclear").SetValue(false));
+            jungle.AddItem(new MenuItem("jungleclearW", "Use W to jungleclear").SetValue(false));
+            jungle.AddItem(new MenuItem("jungleclearE", "Use E to jungleclear").SetValue(false));
+            jungle.AddItem(new MenuItem("junglemana", "Minimum mana to jungleclear in %").SetValue(new Slider(0)));
             //CustomCombo Menu
-            var customCombo = new Menu("CustomCombo (require a selected target!)", "CustomCombo").SetFontStyle(FontStyle.Bold, fontColor: SharpDX.Color.Yellow);
+            var customCombo = new Menu("Custom Combo's (require a selected target!)", "CustomCombo").SetFontStyle(FontStyle.Bold, fontColor: SharpDX.Color.Yellow);
             Menu.AddSubMenu(customCombo);
+            customCombo.AddItem(new MenuItem("CustomComboText","Custom Combo's"));
             customCombo.AddItem(new MenuItem("info", "How to use CustomCombo's :").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
             customCombo.AddItem(new MenuItem("info1", "1) Make sure every spells used in the combo are up.").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
             customCombo.AddItem(new MenuItem("info2", "2) Select your Target.").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
             customCombo.AddItem(new MenuItem("info3", "3) Press combo key until every spells are used.").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
             customCombo.AddItem(new MenuItem("info4", "4) Press space key afterwards for ideal follow up.").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
-            customCombo.AddItem(new MenuItem("lateGameZhonyaCombo", "EE to gapclose RWQ zhonya").SetValue(new KeyBind("G".ToCharArray()[0], KeyBindType.Press)));
-            customCombo.AddItem(new MenuItem("QminionREWCombo", "Q minion to gapclose REW").SetValue(new KeyBind("H".ToCharArray()[0], KeyBindType.Press)));
-            customCombo.AddItem(new MenuItem("EFlashCombo", "E Flash on target RWQ zhonya").SetValue(new KeyBind("J".ToCharArray()[0], KeyBindType.Press)));
+            customCombo.AddItem(new MenuItem("lateGameZhonyaCombo", "EE to gapclose RWQ zhonya").SetValue(new KeyBind("G".ToCharArray()[0], KeyBindType.Press)).SetTooltip("Will use E twice to gapclose then RWQ. Zhonya when Q has been casted, if it is owned and active."));
+            customCombo.AddItem(new MenuItem("lateGameZhonyaComboZhonya", "Use Zhonya with EE to gapclose RWQ").SetValue(true));
+            customCombo.AddItem(new MenuItem("QminionREWCombo", "Q minion to gapclose REW").SetValue(new KeyBind("H".ToCharArray()[0], KeyBindType.Press)).SetTooltip("Will use Q on a minion or neutral monster (unless your target is already in range) to gapclose. Then R after a little delay (for the travel time) and EW on the target."));
+            customCombo.AddItem(new MenuItem("EFlashCombo", "E Flash on target RWQ zhonya").SetValue(new KeyBind("J".ToCharArray()[0], KeyBindType.Press)).SetTooltip("Will use E once (for the area damage and slow) then Flash on the target before landing and RWQ. Zhonya when Q has been casted, if it is owned and active."));
+            customCombo.AddItem(new MenuItem("EFlashComboZhonya", "Use Zhonya with E Flash on target RWQ").SetValue(true));
             customCombo.AddItem(new MenuItem("Flee", "Flee Key (Flee does not require a target)").SetValue(new KeyBind("Q".ToCharArray()[0], KeyBindType.Press)));
-            //Misc Menu
-            var miscMenu = new Menu("Misc", "Misc");
-            Menu.AddSubMenu(miscMenu);
-            miscMenu.AddItem(new MenuItem("drawComboDamage", "Draw predicted combo damage on target").SetValue(false));
-            miscMenu.AddItem(new MenuItem("drawQ", "Draw Q range").SetValue(false));
-            miscMenu.AddItem(new MenuItem("drawMinionQCombo", "Draw QminionREWCombo helper").SetValue(false));
-            miscMenu.AddItem(new MenuItem("drawR", "Draw R Prediction (Selected Target Only)").SetValue(false));
-            miscMenu.AddItem(new MenuItem("drawRHitChance", "Draw Hitchance status of R (Selected Target Only)").SetValue(false));
-            miscMenu.AddItem(new MenuItem("antiAfk", "Anti-AFK").SetValue(false));
+            //Anti-Afk
+            var antiAfk = new Menu("Anti-AFK","Anti-AFK");
+            Menu.AddSubMenu(antiAfk);
+            antiAfk.AddItem(new MenuItem("Anti-AFKText","Anti-AFK"));
+            antiAfk.AddItem(new MenuItem("antiAfk","Anti-AFK").SetValue(false));
+            //Drawings Menu
+            var drawings = new Menu("Drawings", "Drawings");
+            Menu.AddSubMenu(drawings);
+            drawings.AddItem(new MenuItem("DrawingsText","Drawings"));
+            drawings.AddItem(new MenuItem("drawComboDamage", "Draw the predicted damage on target").SetValue(false).SetTooltip("Shows the total damage of the active spells(spells not on cooldown) and 1 autoattack. Summoners included (ignite or smite)."));
+            drawings.AddItem(new MenuItem("ComboDamageColor", "Color of the predicted damage").SetValue<Color>(Color.Goldenrod));
+            drawings.AddItem(new MenuItem("drawQ", "Draw Q range").SetValue(false));
+            drawings.AddItem(new MenuItem("drawQColor", "Color of the Q range").SetValue<Color>(Color.DarkRed));
+            drawings.AddItem(new MenuItem("drawMinionQCombo", "Draw QminionREWCombo helper (Selected Target Only)").SetValue(false).SetTooltip("Shows a rectangle between you and your target. Helps you see on which minion Fizz will dash when pressing the QminionREWCombo key. You need to select a target for it to be shown."));
+            drawings.AddItem(new MenuItem("drawMinionQComboColor", "Color of the QminionREWCombo helper").SetValue<Color>(Color.CornflowerBlue));
+            drawings.AddItem(new MenuItem("drawR", "Draw R prediction (Selected Target Only)").SetValue(false).SetTooltip("Draws where the ultimate will be casted. You need to select a target for it to be shown."));
+            drawings.AddItem(new MenuItem("drawRColor", "Color of the R prediction").SetValue<Color>(Color.Blue));
+            drawings.AddItem(new MenuItem("drawRHitChance", "Draw Hitchance status text of R (Selected Target Only)").SetValue(false));
+            drawings.AddItem(new MenuItem("drawRHitChanceColor", "Color of the Hitchance status text").SetValue<Color>(Color.DarkTurquoise));
+            drawings.AddItem(new MenuItem("drawRHitChanceX", "X screen position of the Hitchance status text").SetValue(new Slider(450, 0, 2000)));
+            drawings.AddItem(new MenuItem("drawRHitChanceY", "Y screen position of the Hitchance status text").SetValue(new Slider(200, 0, 2000)));
             //Author Menu
             var about = new Menu("About", "About").SetFontStyle(FontStyle.Regular, fontColor: SharpDX.Color.Gray);
             Menu.AddSubMenu(about);
+            about.AddItem(new MenuItem("AboutText", "About"));
             about.AddItem(new MenuItem("Author", "Author: mathieu002").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.White));
             about.AddItem(new MenuItem("Credits", "Credits: ChewyMoon,1Shinigamix3,jQuery,Kurisu,Hellsing,detuks"));
             about.AddItem(new MenuItem("Upvote", "Remember to upvote the assembly if you like it ! GL & HF").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
@@ -148,7 +174,8 @@ namespace MathFizz
             botrk = new Items.Item(3153, 450);
             hextech = new Items.Item(3146, 700);
             zhonya = new Items.Item(3157);
-
+            harassQCastedPosition = Player.Position;
+            basePosition = Player.Position;
             Menu.AddToMainMenu();
             Game.PrintChat("<font color='#2CCACE'>Fizz by</font> <font color='#B000FF'>mathieu002</font> <font color='##FFD93B'>Loaded</font>");
             OnDoCast();
@@ -182,27 +209,27 @@ namespace MathFizz
                             {
                                 if (ondash && canCastZhonyaOnDash)
                                 {
-                                    Utility.DelayAction.Add(1700, () =>
+                                    Utility.DelayAction.Add((1690 - ping), () =>
                                     {
                                         zhonya.Cast();
                                     });
                                 }
                                 if (afterdash && canCastZhonyaOnDash)
                                 {
-                                    Utility.DelayAction.Add(1700, () =>
+                                    Utility.DelayAction.Add((1690 - ping), () =>
                                     {
                                         zhonya.Cast();
                                     });
                                 }
                                 if (gapclose && canCastZhonyaOnDash)
                                 {
-                                    Utility.DelayAction.Add(1700, () =>
+                                    Utility.DelayAction.Add((1690 - ping), () =>
                                     {
                                         zhonya.Cast();
                                     });
                                 }
                             }
-                            Utility.DelayAction.Add(775, () =>
+                            Utility.DelayAction.Add((660 - ping), () =>
                             {
                                     if (!W.IsReady() && !Q.IsReady() && Player.Distance(target.Position) > 330 && Player.Distance(target.Position) <= 400 + 270)
                                     {
@@ -216,7 +243,12 @@ namespace MathFizz
                     if (Orbwalker.ActiveMode == Orbwalking.OrbwalkingMode.Mixed)
                     {
                         var useQ = (Menu.Item("useharassQ").GetValue<bool>() && Q.IsReady());
-                        var useE2 = (Menu.Item("useharassE").GetValue<bool>() && E.IsReady());
+                        var useEHarass = (Menu.Item("useharassE").GetValue<bool>() && E.IsReady());
+                        var EtoMousePos = (Menu.Item("harassEMode").GetValue<StringList>().SelectedIndex == 0);
+                        var EtoHitEnemy = (Menu.Item("harassEMode").GetValue<StringList>().SelectedIndex == 1);
+                        var EtoComeback = (Menu.Item("harassEMode").GetValue<StringList>().SelectedIndex == 2);
+                        var EEtoComeback = (Menu.Item("harassEMode").GetValue<StringList>().SelectedIndex == 3);
+
                         if (Menu.Item("useEWQ").GetValue<bool>())
                         {
                             if (useQ && !E.IsReady() && Player.Distance(target.Position) <= Q.Range)
@@ -226,17 +258,42 @@ namespace MathFizz
                         }
                         if (!Menu.Item("useEWQ").GetValue<bool>())
                         {
-                            if (useE2 && !Q.IsReady() && Player.Distance(target.Position) <= 550)
+                            if (useEHarass && !Q.IsReady() && Player.Distance(target.Position) <= 550)
                             {
-                                SharpDX.Vector3 castPosition = E.GetPrediction(target, false, 1).CastPosition;
-                                E.Cast(castPosition);
-                                Utility.DelayAction.Add(775, () => 
+                                if (EtoComeback || EEtoComeback)
                                 {
-                                    if (!W.IsReady() && !Q.IsReady() && Player.Distance(target.Position) > 330 && Player.Distance(target.Position) <= 400 + 270)
-                                    {
-                                        E.Cast(E.GetPrediction(target, false, 1).CastPosition);
+                                    var haraspos = harassQCastedPosition.Extend(Player.Position, -(E.Range + E.Range));
+                                    //E to comeback
+                                    E.Cast(harassQCastedPosition.Extend(Player.Position, -(E.Range + E.Range)));
+                                    if (EEtoComeback){
+                                        Utility.DelayAction.Add((365 - ping), () => E.Cast(haraspos));
                                     }
-                                });
+                                }
+                                if (EtoHitEnemy)
+                                {
+                                    //E to enemy
+                                    SharpDX.Vector3 castPosition = E.GetPrediction(target, false, 1).CastPosition;
+                                    E.Cast(castPosition);
+                                    Utility.DelayAction.Add((660 - ping), () =>
+                                    {
+                                        if (!W.IsReady() && !Q.IsReady() && Player.Distance(target.Position) > 330 && Player.Distance(target.Position) <= 400 + 270)
+                                        {
+                                            E.Cast(E.GetPrediction(target, false, 1).CastPosition);
+                                        }
+                                    });
+                                }
+                                if (EtoMousePos)
+                                {
+                                    //E to mouse
+                                    E.Cast(Game.CursorPos);
+                                    Utility.DelayAction.Add((660 - ping), () =>
+                                    {
+                                        if (Player.Distance(Game.CursorPos) > 330)
+                                        {
+                                            E.Cast(Game.CursorPos);
+                                        }
+                                    });
+                                }
                             }
                         }
                     }
@@ -251,18 +308,18 @@ namespace MathFizz
         {
             if (Menu.Item("drawQ").GetValue<bool>())
             {
-                Render.Circle.DrawCircle(Player.Position, Q.Range, System.Drawing.Color.DarkRed, 3);
+                Render.Circle.DrawCircle(Player.Position, Q.Range, Menu.Item("drawQColor").GetValue<Color>(), 3);
             }
             if (Menu.Item("drawMinionQCombo").GetValue<bool>() && SelectedTarget.IsValidTarget())
             {
                 if (Player.Distance(SelectedTarget) <= R.Range + Q.Range)
                 {
-                    RRectangle.Draw(Color.CornflowerBlue, 3);
+                    RRectangle.Draw(Menu.Item("drawMinionQComboColor").GetValue<Color>(), 3);
                 }
             }
             if (hitchanceR != "" && Menu.Item("drawRHitChance").GetValue<bool>())
             {
-                Drawing.DrawText(400, 400, Color.DarkTurquoise, "Hitchance: " + hitchanceR);
+                Drawing.DrawText((float)Menu.Item("drawRHitChanceX").GetValue<Slider>().Value, (float)Menu.Item("drawRHitChanceY").GetValue<Slider>().Value, Menu.Item("drawRHitChanceColor").GetValue<Color>(), "Hitchance: " + hitchanceR);
             }
             if (debugText != "")
             {
@@ -275,7 +332,7 @@ namespace MathFizz
             if (Menu.Item("drawR").GetValue<bool>() && SelectedTarget.IsValidTarget())
             {
                 CollisionableObjects[] collisionCheck = { CollisionableObjects.YasuoWall};
-                Render.Circle.DrawCircle(R.GetPrediction(SelectedTarget, false, 1, collisionCheck).CastPosition.Extend(Player.Position, -330), 250, Color.Blue);
+                Render.Circle.DrawCircle(R.GetPrediction(SelectedTarget, false, 1, collisionCheck).CastPosition.Extend(Player.Position, -330), 250, Menu.Item("drawRColor").GetValue<Color>());
             }
             if (Menu.Item("drawComboDamage").GetValue<bool>()) 
             {
@@ -294,7 +351,7 @@ namespace MathFizz
                     var startPoint = new SharpDX.Vector2((int)(unit.HPBarPosition.X + BarOffset.X + damagePercentage * 104), (int)(unit.HPBarPosition.Y + BarOffset.Y) - 5);
                     var endPoint = new SharpDX.Vector2((int)(unit.HPBarPosition.X + BarOffset.X + currentHealthPercentage * 104) + 1, (int)(unit.HPBarPosition.Y + BarOffset.Y) - 5);
 
-                    Color bar = Color.FromArgb(200, 255, 199, 0);
+                    Color bar = Menu.Item("ComboDamageColor").GetValue<Color>();
                     // Draw the line
                     Drawing.DrawLine(startPoint, endPoint, 9, bar);
                 }
@@ -309,6 +366,7 @@ namespace MathFizz
             {
                 return;
             }
+            ping = Game.Ping;
             SelectedTarget = TargetSelector.SelectedTarget;
 
             if (SelectedTarget.IsValidTarget())
@@ -321,7 +379,7 @@ namespace MathFizz
                     RRectangle.UpdatePolygon();
                 }
             }
-            if (Menu.Item("useEWQ").GetValue<bool>() == true)
+            if (Menu.Item("useEWQ").GetValue<bool>())
             {
                 if (!Menu.Item("useharassQ").GetValue<bool>())
                 {
@@ -335,9 +393,32 @@ namespace MathFizz
                 {
                     Menu.Item("useharassW").SetValue<bool>(true);
                 }
+                if (Menu.Item("harassmana").ShowItem)
+                {
+                    lastSliderValue = Menu.Item("harassmana").GetValue<Slider>().Value;
+                    Menu.Item("harassmana").ShowItem = false;
+                }
                 if (Menu.Item("harassmana").GetValue<Slider>().Value != 0)
                 {
                     Menu.Item("harassmana").SetValue<Slider>(new Slider(0));
+                }
+                if (Menu.Item("texttt").ShowItem)
+                {
+                    Menu.Item("texttt").ShowItem = false;
+                }
+                if (Menu.Item("harassEMode").ShowItem)
+                {
+                    Menu.Item("harassEMode").ShowItem = false;
+                }
+            }
+            if (!Menu.Item("texttt").ShowItem)
+            {
+                if (!Menu.Item("useEWQ").GetValue<bool>())
+                {
+                    Menu.Item("harassmana").ShowItem = true;
+                    Menu.Item("texttt").ShowItem = true;
+                    Menu.Item("harassEMode").ShowItem = true;
+                    Menu.Item("harassmana").SetValue<Slider>(new Slider(lastSliderValue));
                 }
             }
             if (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 1)
@@ -613,7 +694,7 @@ namespace MathFizz
                             SharpDX.Vector3 harassEcastPosition = E.GetPrediction(m, false, 1).CastPosition;
                             E.Cast(harassEcastPosition);
                             //Delay for fizzjumptwo
-                            Utility.DelayAction.Add(180, () => E.Cast(E.GetPrediction(m, false, 1).CastPosition.Extend(startPos, -135)));
+                            Utility.DelayAction.Add((365 - ping), () => E.Cast(E.GetPrediction(m, false, 1).CastPosition.Extend(startPos, -135)));
                         }
                         if (useW && (Player.Distance(m.Position) <= 175))
                         {
@@ -631,7 +712,7 @@ namespace MathFizz
                             SharpDX.Vector3 harassEcastPosition3 = E.GetPrediction(m, false, 1).CastPosition;
                             E.Cast(harassEcastPosition3);
                             //Delay for fizzjumptwo
-                            Utility.DelayAction.Add(180, () => 
+                            Utility.DelayAction.Add((365 - ping), () => 
                             {
                                 E.Cast(E.GetPrediction(m, false, 1).CastPosition.Extend(startPos, -135));
                                 enoughManaEQ = false;
@@ -647,6 +728,7 @@ namespace MathFizz
                 if (useW && (Player.Distance(m.Position) <= Q.Range)) W.Cast();
                 if (useQ && (Player.Distance(m.Position) <= Q.Range))
                 {
+                    harassQCastedPosition = Player.Position;
                     Q.Cast(m);
                 }
             }
@@ -695,7 +777,7 @@ namespace MathFizz
                 if (useW && Player.Distance(m.Position) <= 540) W.Cast();
                 if (useQ && Player.Distance(m.Position) <= 550){
                     Q.Cast(m);
-                    Utility.DelayAction.Add(500, () => {
+                    Utility.DelayAction.Add((540 - ping), () => {
                         if (useR && m.HealthPercent >= Menu.Item("targetMinHPforR").GetValue<Slider>().Value)
                         {
                             CastRSmart(m);
@@ -724,7 +806,7 @@ namespace MathFizz
             {
                 castPosition = E.GetPrediction(m, false, 1).CastPosition;
                 E.Cast(castPosition);
-                Utility.DelayAction.Add(775, () =>
+                Utility.DelayAction.Add((680 - ping), () =>
                 {
                     if (!W.IsReady() && !Q.IsReady() && Player.Distance(m.Position) > 330 && Player.Distance(m.Position) <= 400 + 270)
                     {
@@ -733,20 +815,20 @@ namespace MathFizz
                 });
                 if (ondash && useZhonya && canCastZhonyaOnDash)
                 {
-                    Utility.DelayAction.Add(2365, () => {
+                    Utility.DelayAction.Add((2405 - ping), () => {
                         zhonya.Cast();
                     });
                 }
                 if (gapclose && useZhonya && canCastZhonyaOnDash)
                 {
-                    Utility.DelayAction.Add(2365, () =>
+                    Utility.DelayAction.Add((2405 - ping), () =>
                     {
                         zhonya.Cast();
                     });
                 }
                 if (afterdash && useZhonya && canCastZhonyaOnDash)
                 {
-                    Utility.DelayAction.Add(2365, () =>
+                    Utility.DelayAction.Add((2405 - ping), () =>
                     {
                         zhonya.Cast();
                     });
@@ -798,7 +880,7 @@ namespace MathFizz
                     {
                         Q.Cast(m);
                     }
-                    if (Player.LastCastedSpellName() == "FizzPiercingStrike")
+                    if (Player.LastCastedSpellName() == "FizzPiercingStrike" && Menu.Item("lateGameZhonyaComboZhonya").GetValue<bool>())
                     {
                         //Check if zhonya is active
                         if (zhonya.IsOwned() && zhonya.IsReady())
@@ -844,7 +926,7 @@ namespace MathFizz
                         else
                         {
                             //Check if minions in rectangle is in Q.Range then Q
-                            var mins = MinionManager.GetMinions(Q.Range);
+                            var mins = MinionManager.GetMinions(Q.Range,MinionTypes.All,MinionTeam.NotAlly);
                             foreach (Obj_AI_Base min in mins)
                             {
                                 if (RRectangle.IsInside(min.Position) && min.Distance(m.Position) > 300)
@@ -857,7 +939,7 @@ namespace MathFizz
                     if (R.IsReady() && !Q.IsReady())
                     {
                         //Use R
-                        Utility.DelayAction.Add(540, () => CastRSmart(m));
+                        Utility.DelayAction.Add((540 - ping), () => CastRSmart(m));
                     }
                     if (E.IsReady() && Player.LastCastedSpellName() == "FizzMarinerDoom")
                     {
@@ -914,7 +996,7 @@ namespace MathFizz
                         //Use E1
                         castPosition = E.GetPrediction(m, false, 1).CastPosition.Extend(Player.Position, -165);
                         E.Cast(castPosition);
-                        Utility.DelayAction.Add(950, () => isEProcessed = true);
+                        Utility.DelayAction.Add((990 - ping), () => isEProcessed = true);
                     }
                     //Flash
                     if (F.IsReady() && !isEProcessed && Player.LastCastedSpellName() == "FizzJump" && Player.Distance(m.Position) <= F.Range + 530 && Player.Distance(m.Position) >= 330)
@@ -934,7 +1016,7 @@ namespace MathFizz
                     {
                         Q.Cast(m);
                     }
-                    if (Player.LastCastedSpellName() == "FizzPiercingStrike")
+                    if (Player.LastCastedSpellName() == "FizzPiercingStrike" && Menu.Item("EFlashComboZhonya").GetValue<bool>())
                     {
                         //Check if zhonya is active
                         if (zhonya.IsOwned() && zhonya.IsReady())
