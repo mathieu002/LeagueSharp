@@ -2,3 +2,5 @@ LeagueSharpFizz/LeagueSharpFizz/obj/x86/Release/TemporaryGeneratedFile_E7A71F73-
 *.cs
 LeagueSharpFizz/LeagueSharpFizz/obj/x86/Release/Math Fizz.csproj.FileListAbsolute.txt
 LeagueSharpFizz/LeagueSharpFizz/bin/x86/Release/LeagueSharpFizz.exe.config
+*.manifest
+LeagueSharpFizz/LeagueSharpFizz/bin/x86/Release/LeagueSharpFizz.vshost.exe.config
