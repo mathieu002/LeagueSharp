@@ -960,6 +960,15 @@ namespace MathFizz
                         }
                         else
                         {
+                            //Check if champions in rectange is in q range
+                            var champions = HeroManager.Enemies;
+                            foreach (Obj_AI_Base champion in champions)
+                            {
+                                if (RRectangle.IsInside(champion.Position) && champion.Distance(m.Position) > 300 && Player.Distance(champion.Position) <= Q.Range)
+                                {
+                                    Q.Cast(champion);
+                                }
+                            }
                             //Check if minions in rectangle is in Q.Range then Q
                             var mins = MinionManager.GetMinions(Q.Range,MinionTypes.All,MinionTeam.NotAlly);
                             foreach (Obj_AI_Base min in mins)
