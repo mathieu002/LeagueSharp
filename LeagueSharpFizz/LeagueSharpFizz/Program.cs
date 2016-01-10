@@ -96,19 +96,17 @@ namespace MathFizz
             combo.AddItem(new MenuItem("ComboMode", "Combo mode").SetValue(new StringList(new[] { "R to gapclose", "R in dash range", "R after Dash", "R on dash" })));
             combo.AddItem(new MenuItem("HitChancewR", "R hitchance").SetValue(new StringList(new[] { "Medium", "High", "Very High" })));
             combo.AddItem(new MenuItem("targetMinHPforR", "Minimum enemy HP(in %) to use R").SetValue(new Slider(35)).SetTooltip("Minimum HP percentage the enemy needs for R to be casted"));
-            combo.AddItem(new MenuItem("useZhonya", "Use Zhonya in combo (Recommended for lategame)").SetValue(true).SetTooltip("Will use Zhonya if owned and active, on each kind of combo."));
+            combo.AddItem(new MenuItem("useZhonya", "Use Zhonya in combo (Recommended for lategame)").SetValue(true).SetTooltip("Will use Zhonya if owned and active, on each kind of combo. Cannot use zhonya if 'Use E in combo' is not active."));
+            combo.AddItem(new MenuItem("useEcombo", "Use E in combo").SetValue(true).SetTooltip("Cannot use zhonya if 'Use E in combo' is not active."));
             //Harass Menu
             var harass = new Menu("Harass", "Harass");
             Menu.AddSubMenu(harass);
             harass.AddItem(new MenuItem("harassText", "Harass").SetTooltip("E Mode will not work with EWQ Combo. 'E to mouse position' will cast E towards your mouse, if your mouse position is out of range of your first E damage, it will also cast the second E towards your mouse."));
             harass.AddItem(new MenuItem("texttt", "Harass with WQ AA E combo").SetTooltip("Will use WQ if you are in Q range. Then E after an AutoAttack."));
             harass.AddItem(new MenuItem("harassEMode", "E mode").SetValue(new StringList(new[] { "E to mouse position", "E to hit the enemy", "E to comeback", "E twice to comeback" })));
-            harass.AddItem(new MenuItem("useharassQ", "Use Q").SetValue(true));
-            Menu.Item("useharassQ").ShowItem = false;
-            harass.AddItem(new MenuItem("useharassW", "Use W").SetValue(true));
-            Menu.Item("useharassW").ShowItem = false;
-            harass.AddItem(new MenuItem("useharassE", "Use E").SetValue(true));
-            Menu.Item("useharassE").ShowItem = false;
+            harass.AddItem(new MenuItem("useharassQ", "Use Q to harass").SetValue(true));
+            harass.AddItem(new MenuItem("useharassW", "Use W to harass").SetValue(true));
+            harass.AddItem(new MenuItem("useharassE", "Use E to harass").SetValue(true));
             harass.AddItem(new MenuItem("harassmana", "Minimum mana to harass in %").SetValue(new Slider(0)));
             harass.AddItem(new MenuItem("useEWQ", "Harass with E(W)Q Combo").SetValue(false).SetTooltip("If you have enough mana for E(W)Q combo and spells are not on cooldown. Will use E (behind the target but in range for the damage) then W AutoAttack and Q to come back."));
             harass.AddItem(new MenuItem("recom", "Recommended to disable 'Priorize farm to harass' in Orbwalker > Misc").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
@@ -200,7 +198,7 @@ namespace MathFizz
             {
                 if (sender.IsMe && args.SData.IsAutoAttack())
                 {
-                    var useE = (E.IsReady());
+                    var useE = (Menu.Item("useEcombo").GetValue<bool>() && E.IsReady());
                     var useR = (R.IsReady());
                     var useZhonya = (Menu.Item("useZhonya").GetValue<bool>() && zhonya.IsReady());
                     var ondash = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 1);
@@ -211,7 +209,7 @@ namespace MathFizz
                     #region Orbwalking Combo
                     if (Orbwalker.ActiveMode == Orbwalking.OrbwalkingMode.Combo)
                     {
-                        if (E.IsReady() && E.Instance.Name == "FizzJump" && Player.Distance(target.Position) <= E.Range) 
+                        if (useE && E.Instance.Name == "FizzJump" && Player.Distance(target.Position) <= E.Range) 
                         {
                             SharpDX.Vector3 castPosition1 = E.GetPrediction(target, false, 1).CastPosition.Extend(Player.Position, -165);
                             E.Cast(castPosition1);
@@ -275,7 +273,7 @@ namespace MathFizz
                         }
                         if (!Menu.Item("useEWQ").GetValue<bool>())
                         {
-                            if (useEHarass && !Q.IsReady() && Player.Distance(target.Position) <= 550)
+                            if (useEHarass && Player.Distance(target.Position) <= 550)
                             {
                                 if (EtoComeback || EEtoComeback)
                                 {
@@ -293,7 +291,7 @@ namespace MathFizz
                                     E.Cast(castPosition);
                                     Utility.DelayAction.Add((660 - ping), () =>
                                     {
-                                        if (!W.IsReady() && !Q.IsReady() && Player.Distance(target.Position) > 330 && Player.Distance(target.Position) <= 400 + 270)
+                                        if (Player.Distance(target.Position) > 330 && Player.Distance(target.Position) <= 400 + 270)
                                         {
                                             E.Cast(E.GetPrediction(target, false, 1).CastPosition);
                                         }
@@ -414,14 +412,17 @@ namespace MathFizz
                 {
                     Menu.Item("useharassQ").SetValue<bool>(true);
                 }
+                Menu.Item("useharassQ").ShowItem = false;
                 if (!Menu.Item("useharassE").GetValue<bool>())
                 {
                     Menu.Item("useharassE").SetValue<bool>(true);
                 }
+                Menu.Item("useharassE").ShowItem = false;
                 if (!Menu.Item("useharassW").GetValue<bool>())
                 {
                     Menu.Item("useharassW").SetValue<bool>(true);
                 }
+                Menu.Item("useharassW").ShowItem = false;
                 if (Menu.Item("harassmana").ShowItem)
                 {
                     lastSliderValue = Menu.Item("harassmana").GetValue<Slider>().Value;
@@ -447,7 +448,17 @@ namespace MathFizz
                     Menu.Item("harassmana").ShowItem = true;
                     Menu.Item("texttt").ShowItem = true;
                     Menu.Item("harassEMode").ShowItem = true;
+                    Menu.Item("useharassQ").ShowItem = true;
+                    Menu.Item("useharassE").ShowItem = true;
+                    Menu.Item("useharassW").ShowItem = true;
                     Menu.Item("harassmana").SetValue<Slider>(new Slider(lastSliderValue));
+                }
+            }
+            if (!Menu.Item("useEcombo").GetValue<bool>())
+            {
+                if (Menu.Item("useZhonya").GetValue<bool>())
+                {
+                    Menu.Item("useZhonya").SetValue(false);
                 }
             }
             if (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 1)
@@ -542,7 +553,7 @@ namespace MathFizz
         #region Flee
         private static void Flee()
         {
-            Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+            Orbwalking.Orbwalk(null, Game.CursorPos);
             if (E.IsReady())
             {
                 E.Cast(Game.CursorPos);
@@ -762,7 +773,7 @@ namespace MathFizz
         {
             var useQ = (Q.IsReady());
             var useW = (W.IsReady());
-            var useE = (E.IsReady());
+            var useE = (E.IsReady() && Menu.Item("useEcombo").GetValue<bool>());
             var useR = (R.IsReady());
             var useZhonya = (Menu.Item("useZhonya").GetValue<bool>() && zhonya.IsReady() && zhonya.IsOwned());
             var gapclose = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 0);
