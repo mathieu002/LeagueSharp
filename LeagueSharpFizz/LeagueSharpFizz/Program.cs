@@ -93,7 +93,7 @@ namespace MathFizz
             var combo = new Menu("Combo", "Combo");
             Menu.AddSubMenu(combo);
             combo.AddItem(new MenuItem("ComboText","Combo").SetTooltip("A higher R hitchance leads to a less often casting of R but more chances to hit."));
-            combo.AddItem(new MenuItem("ComboMode", "Combo mode").SetValue(new StringList(new[] { "R to gapclose", "R on Dash", "R after Dash" })));
+            combo.AddItem(new MenuItem("ComboMode", "Combo mode").SetValue(new StringList(new[] { "R to gapclose", "R in dash range", "R after Dash", "R on dash" })));
             combo.AddItem(new MenuItem("HitChancewR", "R hitchance").SetValue(new StringList(new[] { "Medium", "High", "Very High" })));
             combo.AddItem(new MenuItem("targetMinHPforR", "Minimum enemy HP(in %) to use R").SetValue(new Slider(35)).SetTooltip("Minimum HP percentage the enemy needs for R to be casted"));
             combo.AddItem(new MenuItem("useZhonya", "Use Zhonya in combo (Recommended for lategame)").SetValue(true).SetTooltip("Will use Zhonya if owned and active, on each kind of combo."));
@@ -200,6 +200,7 @@ namespace MathFizz
                     var ondash = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 1);
                     var afterdash = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 2);
                     var gapclose = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 0);
+                    var realondash = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 3);
                     var target = (Obj_AI_Hero)args.Target;
                     #region Orbwalking Combo
                     if (Orbwalker.ActiveMode == Orbwalking.OrbwalkingMode.Combo)
@@ -225,6 +226,13 @@ namespace MathFizz
                                     });
                                 }
                                 if (gapclose && canCastZhonyaOnDash)
+                                {
+                                    Utility.DelayAction.Add((1690 - ping), () =>
+                                    {
+                                        zhonya.Cast();
+                                    });
+                                }
+                                if (realondash && canCastZhonyaOnDash)
                                 {
                                     Utility.DelayAction.Add((1690 - ping), () =>
                                     {
@@ -427,6 +435,11 @@ namespace MathFizz
             if (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 1)
             {
                 //ondash need to have r hitchance to medium
+                Menu.Item("HitChancewR").SetValue<StringList>(new StringList(new[] { "Medium", "High", "Very High" }));
+            }
+            if (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 3)
+            {
+                //realondash need to have r hitchance to medium
                 Menu.Item("HitChancewR").SetValue<StringList>(new StringList(new[] { "Medium", "High", "Very High" }));
             }
             if (!Menu.Item("EFlashCombo").GetValue<KeyBind>().Active && isEProcessed)
@@ -737,6 +750,7 @@ namespace MathFizz
             var gapclose = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 0);
             var ondash = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 1);
             var afterdash = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 2);
+            var realondash = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 3);
             var m = SelectedTarget;
             if (!m.IsValidTarget()) 
             {
@@ -789,6 +803,31 @@ namespace MathFizz
                 }
                 if (useQ) Q.Cast(m);
                 if (useW && Player.Distance(m.Position) <= 540) W.Cast();
+                if (hydra.IsOwned() && Player.Distance(m) < hydra.Range && hydra.IsReady() && !E.IsReady()) hydra.Cast();
+                if (tiamat.IsOwned() && Player.Distance(m) < tiamat.Range && tiamat.IsReady() && !E.IsReady()) tiamat.Cast();
+            }
+            if (realondash && !m.IsZombie && useR && Player.Distance(m.Position) <= 550)
+            {
+                Q.Cast(m);
+                if (useR && m.HealthPercent >= Menu.Item("targetMinHPforR").GetValue<Slider>().Value)
+                {
+                        if( Player.Distance(m.Position) <= 350)
+                        {
+                            Utility.DelayAction.Add((500-ping), () => { 
+                                CastRSmart(m);
+                                lastRCastTick = Game.Time;
+                            });
+                        }
+                        else
+                        {
+                            CastRSmart(m);
+                            lastRCastTick = Game.Time;
+                        }
+                }
+                if (useW && Player.Distance(m.Position) <= 540)
+                {
+                    W.Cast();
+                }
                 if (hydra.IsOwned() && Player.Distance(m) < hydra.Range && hydra.IsReady() && !E.IsReady()) hydra.Cast();
                 if (tiamat.IsOwned() && Player.Distance(m) < tiamat.Range && tiamat.IsReady() && !E.IsReady()) tiamat.Cast();
             }
