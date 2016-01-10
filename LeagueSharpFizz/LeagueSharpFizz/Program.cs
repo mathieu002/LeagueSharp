@@ -156,6 +156,12 @@ namespace MathFizz
             drawings.AddItem(new MenuItem("ComboDamageColor", "Color of the predicted damage").SetValue<Color>(Color.Goldenrod));
             drawings.AddItem(new MenuItem("drawQ", "Draw Q range").SetValue(false));
             drawings.AddItem(new MenuItem("drawQColor", "Color of the Q range").SetValue<Color>(Color.DarkRed));
+            drawings.AddItem(new MenuItem("drawE", "Draw E range").SetValue(false));
+            drawings.AddItem(new MenuItem("drawEColor", "Color of the E range").SetValue<Color>(Color.DarkRed));
+            drawings.AddItem(new MenuItem("drawEMax", "Draw E maximum range").SetValue(false));
+            drawings.AddItem(new MenuItem("drawEMaxColor", "Color of the E maximum range").SetValue<Color>(Color.DarkRed));
+            drawings.AddItem(new MenuItem("drawRr", "Draw R range").SetValue(false));
+            drawings.AddItem(new MenuItem("drawRrColor", "Color of the R range").SetValue<Color>(Color.DarkRed));
             drawings.AddItem(new MenuItem("drawMinionQCombo", "Draw QminionREWCombo helper (Selected Target Only)").SetValue(false).SetTooltip("Shows a rectangle between you and your target. Helps you see on which minion Fizz will dash when pressing the QminionREWCombo key. You need to select a target for it to be shown."));
             drawings.AddItem(new MenuItem("drawMinionQComboColor", "Color of the QminionREWCombo helper").SetValue<Color>(Color.CornflowerBlue));
             drawings.AddItem(new MenuItem("drawR", "Draw R prediction (Selected Target Only)").SetValue(false).SetTooltip("Draws where the ultimate will be casted. You need to select a target for it to be shown."));
@@ -320,6 +326,18 @@ namespace MathFizz
             if (Menu.Item("drawQ").GetValue<bool>())
             {
                 Render.Circle.DrawCircle(Player.Position, Q.Range, Menu.Item("drawQColor").GetValue<Color>(), 3);
+            }
+            if (Menu.Item("drawE").GetValue<bool>())
+            {
+                Render.Circle.DrawCircle(Player.Position, E.Range, Menu.Item("drawEColor").GetValue<Color>(), 3);
+            }
+            if (Menu.Item("drawEMax").GetValue<bool>())
+            {
+                Render.Circle.DrawCircle(Player.Position, E.Range+E.Range, Menu.Item("drawEMaxColor").GetValue<Color>(), 3);
+            }
+            if (Menu.Item("drawRr").GetValue<bool>())
+            {
+                Render.Circle.DrawCircle(Player.Position, R.Range, Menu.Item("drawRrColor").GetValue<Color>(), 3);
             }
             if (Menu.Item("drawMinionQCombo").GetValue<bool>() && SelectedTarget.IsValidTarget())
             {
