@@ -16,6 +16,8 @@ namespace MathFizz
         public static Obj_AI_Hero Player = ObjectManager.Player;
         private static Obj_AI_Hero SelectedTarget;
 
+        public static Random Random;
+
         public static List<Obj_AI_Base> MinionList;
 
         public static Orbwalking.Orbwalker Orbwalker;
@@ -82,7 +84,7 @@ namespace MathFizz
             I = new Spell(Player.GetSpellSlot("summonersmite"), 500);
 
             E.SetSkillshot(0.25f, 330, float.MaxValue, false, SkillshotType.SkillshotCircle);
-            R.SetSkillshot(0.25f, 80, 600, true, SkillshotType.SkillshotLine);
+            R.SetSkillshot(0.25f, 80, 1300, true, SkillshotType.SkillshotLine);
 
             RRectangle = new Geometry.Polygon.Rectangle(Player.Position, Player.Position, 300);
 
@@ -97,7 +99,8 @@ namespace MathFizz
             combo.AddItem(new MenuItem("HitChancewR", "R hitchance").SetValue(new StringList(new[] { "Medium", "High", "Very High" })));
             combo.AddItem(new MenuItem("targetMinHPforR", "Minimum enemy HP(in %) to use R").SetValue(new Slider(35)).SetTooltip("Minimum HP percentage the enemy needs for R to be casted"));
             combo.AddItem(new MenuItem("useZhonya", "Use Zhonya in combo (Recommended for lategame)").SetValue(true).SetTooltip("Will use Zhonya if owned and active, on each kind of combo. Cannot use zhonya if 'Use E in combo' is not active."));
-            combo.AddItem(new MenuItem("useEcombo", "Use E in combo").SetValue(true).SetTooltip("Cannot use zhonya if 'Use E in combo' is not active."));
+            combo.AddItem(new MenuItem("useEcombo", "Use E in combo").SetValue(true).SetTooltip("Will be casted after an autoattack as priority. Unless Q, W and R are on cooldown and your target is out of autoattack range. Cannot use zhonya if 'Use E in combo' is not active."));
+            combo.AddItem(new MenuItem("UseEOnlyAfterAA", "Use E only after an autoattack").SetValue(false).SetTooltip("Will not use E without having done an autoattack first."));
             //Harass Menu
             var harass = new Menu("Harass", "Harass");
             Menu.AddSubMenu(harass);
@@ -108,7 +111,7 @@ namespace MathFizz
             harass.AddItem(new MenuItem("useharassW", "Use W to harass").SetValue(true));
             harass.AddItem(new MenuItem("useharassE", "Use E to harass").SetValue(true));
             harass.AddItem(new MenuItem("harassmana", "Minimum mana to harass in %").SetValue(new Slider(0)));
-            harass.AddItem(new MenuItem("useEWQ", "Harass with E(W)Q Combo").SetValue(false).SetTooltip("If you have enough mana for E(W)Q combo and spells are not on cooldown. Will use E (behind the target but in range for the damage) then W AutoAttack and Q to come back."));
+            harass.AddItem(new MenuItem("useEWQ", "Harass with EE(W)Q Combo").SetValue(false).SetTooltip("If you have enough mana for E(W)Q combo and spells are not on cooldown. Will use E (behind the target but in range for the damage) then W AutoAttack and Q to come back."));
             harass.AddItem(new MenuItem("recom", "Recommended to disable 'Priorize farm to harass' in Orbwalker > Misc").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
             //LaneClear Menu
             var lc = new Menu("Laneclear", "Laneclear");
@@ -141,6 +144,8 @@ namespace MathFizz
             customCombo.AddItem(new MenuItem("EFlashCombo", "E Flash on target RWQ zhonya").SetValue(new KeyBind("J".ToCharArray()[0], KeyBindType.Press)).SetTooltip("Will use E once (for the area damage and slow) then Flash on the target before landing and RWQ. Zhonya when Q has been casted, if it is owned and active."));
             customCombo.AddItem(new MenuItem("EFlashComboZhonya", "Use Zhonya with E Flash on target RWQ").SetValue(true));
             customCombo.AddItem(new MenuItem("Flee", "Flee Key (Flee does not require a target)").SetValue(new KeyBind("Q".ToCharArray()[0], KeyBindType.Press)));
+            customCombo.AddItem(new MenuItem("manualR", "Auto cast R key").SetValue(new KeyBind("K".ToCharArray()[0], KeyBindType.Press)).SetTooltip("Selected targets are always a priority. Else will cast depending on the targets in R range"));
+            customCombo.AddItem(new MenuItem("manualRHitchance", "Auto cast R hitchance").SetValue(new StringList(new[] { "Medium", "High", "Very High" })));
             //Anti-Afk
             var antiAfk = new Menu("Anti-AFK","Anti-AFK");
             Menu.AddSubMenu(antiAfk);
@@ -175,13 +180,13 @@ namespace MathFizz
             about.AddItem(new MenuItem("Author", "Author: mathieu002").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.White));
             about.AddItem(new MenuItem("Credits", "Credits: ChewyMoon,1Shinigamix3,jQuery,Kurisu,Hellsing,detuks"));
             about.AddItem(new MenuItem("Upvote", "Remember to upvote the assembly if you like it ! GL & HF").SetFontStyle(FontStyle.Italic, fontColor: SharpDX.Color.Goldenrod));
-
             hydra = new Items.Item(3074, 185);
             tiamat = new Items.Item(3077, 185);
             cutlass = new Items.Item(3144, 450);
             botrk = new Items.Item(3153, 450);
             hextech = new Items.Item(3146, 700);
             zhonya = new Items.Item(3157);
+            Random = new Random();
             harassQCastedPosition = Player.Position;
             Menu.AddToMainMenu();
             Game.PrintChat("<font color='#2CCACE'>Fizz by</font> <font color='#B000FF'>mathieu002</font> <font color='##FFD93B'>Loaded</font>");
@@ -358,8 +363,7 @@ namespace MathFizz
             }
             if (Menu.Item("drawR").GetValue<bool>() && SelectedTarget.IsValidTarget())
             {
-                CollisionableObjects[] collisionCheck = { CollisionableObjects.YasuoWall};
-                Render.Circle.DrawCircle(R.GetPrediction(SelectedTarget, false, 1, collisionCheck).CastPosition.Extend(Player.Position, -330), 250, Menu.Item("drawRColor").GetValue<Color>());
+                Render.Circle.DrawCircle(R.GetPrediction(SelectedTarget, false, Player.Distance(SelectedTarget.Position)).CastPosition.Extend(Player.Position, -(600)), 250, Menu.Item("drawRColor").GetValue<Color>());
             }
             if (Menu.Item("drawComboDamage").GetValue<bool>()) 
             {
@@ -395,7 +399,7 @@ namespace MathFizz
             }
             ping = Game.Ping;
             SelectedTarget = TargetSelector.SelectedTarget;
-
+            #region working stuff
             if (SelectedTarget.IsValidTarget())
             {
                 if (Player.Distance(SelectedTarget) <= R.Range + Q.Range + 100)
@@ -406,6 +410,11 @@ namespace MathFizz
                     RRectangle.UpdatePolygon();
                 }
             }
+            if (!Menu.Item("useEcombo").IsActive())
+            {
+                Menu.Item("UseEOnlyAfterAA").ShowItem = false;
+            }
+            else Menu.Item("UseEOnlyAfterAA").ShowItem = true;
             if (Menu.Item("useEWQ").GetValue<bool>())
             {
                 if (!Menu.Item("useharassQ").GetValue<bool>())
@@ -463,12 +472,10 @@ namespace MathFizz
             }
             if (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 1)
             {
-                //ondash need to have r hitchance to medium
                 Menu.Item("HitChancewR").SetValue<StringList>(new StringList(new[] { "Medium", "High", "Very High" }));
             }
             if (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 3)
             {
-                //realondash need to have r hitchance to medium
                 Menu.Item("HitChancewR").SetValue<StringList>(new StringList(new[] { "Medium", "High", "Very High" }));
             }
             if (!Menu.Item("EFlashCombo").GetValue<KeyBind>().Active && isEProcessed)
@@ -487,7 +494,6 @@ namespace MathFizz
                 if (test == HitChance.VeryHigh) hitchanceR = "VeryHigh Chance";
                 if (test == HitChance.Low) hitchanceR = "Low  Chance";
                 if (test == HitChance.High) hitchanceR = "High Chance";
-                if (test == HitChance.OutOfRange) hitchanceR = "OutOfRange";
                 if (test == HitChance.Impossible) hitchanceR = "Impossible";
             }
             //Anti AFK
@@ -495,8 +501,7 @@ namespace MathFizz
             {
                 if (Environment.TickCount - lastMovementTick > 140000)
                 {
-                    ObjectManager.Player.IssueOrder(GameObjectOrder.MoveTo,
-                        ObjectManager.Player.Position.Randomize(-200, 200));
+                    Orbwalking.Orbwalk(null, Game.CursorPos.Randomize(-200,200));
                     lastMovementTick = Environment.TickCount;
                 }
             }
@@ -504,13 +509,16 @@ namespace MathFizz
             {
                 doOnce = true;
             }
-            if (doOnce && Player.LastCastedspell().Name == "FizzMarinerDoom")
+            if (Player.LastCastedSpellT() >= 1)
             {
-                RCooldownTimer = Game.Time;
-                doOnce = false;
+                if (doOnce && Player.LastCastedspell().Name == "FizzMarinerDoom")
+                {
+                    RCooldownTimer = Game.Time;
+                    doOnce = false;
+                }
             }
             //R cast tick lastRCastTick
-            if (Game.Time - RCooldownTimer <= 7.0f)
+            if (Game.Time - RCooldownTimer <= 5.0f)
             {
                canCastZhonyaOnDash = true;
             }
@@ -518,6 +526,9 @@ namespace MathFizz
             {
                canCastZhonyaOnDash = false;
             }
+            #endregion
+
+            #region Orbwalker
             if (Orbwalker.ActiveMode == Orbwalking.OrbwalkingMode.Mixed)
             {
                 Harass();
@@ -531,10 +542,61 @@ namespace MathFizz
                 Lane();
                 Jungle();
             }
+            #endregion
+
+            #region flee
             if (Menu.Item("Flee").GetValue<KeyBind>().Active)
             {
                 Flee();
             }
+            #endregion
+
+            #region Auto cast R
+            if (R.IsReady()) 
+            {
+                if (Menu.Item("manualR").GetValue<KeyBind>().Active)
+                {
+                    var t = SelectedTarget;
+                    if (!t.IsValidTarget())
+                    {
+                        t = TargetSelector.GetTarget(R.Range, TargetSelector.DamageType.Magical);
+                        if (!t.IsValidTarget())
+                        {
+                            t = TargetSelector.GetTarget(R.Range, TargetSelector.DamageType.Physical);
+                            if (!t.IsValidTarget())
+                            {
+                                t = TargetSelector.GetTarget(R.Range, TargetSelector.DamageType.True);
+                            }
+                        }
+                    }
+                    if (t.IsValidTarget())
+                    {
+                        if (Player.Distance(t.Position) <= R.Range)
+                        {
+                            //if enemy is not facing us, check via movespeed
+                            if (!Utility.IsFacing(t, Player))
+                            {
+                                if (Player.Distance(t.Position) < (R.Range - t.MoveSpeed)-(165))
+                                {
+                                    CastRSmart(t);
+                                    lastRCastTick = Game.Time;
+                                }
+                            }
+                            else
+                            {
+                                if (Player.Distance(t.Position) <= R.Range)
+                                {
+                                    CastRSmart(t);
+                                    lastRCastTick = Game.Time;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            #endregion
+
+            #region Custom combo's
             if (Menu.Item("lateGameZhonyaCombo").GetValue<KeyBind>().Active)
             {
                 lateGameZhonyaCombo();
@@ -547,6 +609,7 @@ namespace MathFizz
             {
                 EFlashCombo();
             }
+            #endregion 
         }
         #endregion
 
@@ -568,25 +631,50 @@ namespace MathFizz
             var veryhigh = (Menu.Item("HitChancewR").GetValue<StringList>().SelectedIndex == 2);
             var medium = (Menu.Item("HitChancewR").GetValue<StringList>().SelectedIndex == 0);
             var high = (Menu.Item("HitChancewR").GetValue<StringList>().SelectedIndex == 1);
-            //Check YasuoWall
-            CollisionableObjects[] collisionCheck = new CollisionableObjects[1];
-            collisionCheck[0] = CollisionableObjects.YasuoWall;
-            HitChance hitChance = R.GetPrediction(target, false, -1, collisionCheck).Hitchance;
-            SharpDX.Vector3 endPosition = R.GetPrediction(target, false, 1, collisionCheck).CastPosition.Extend(Player.Position, -330);
-            //Check for spellshields
-            if (!target.HasBuff("summonerbarrier") || !target.HasBuff("BlackShield") || !target.HasBuff("SivirShield") || !target.HasBuff("BansheesVeil") || !target.HasBuff("ShroudofDarkness")) 
+            var veryhighAuto = (Menu.Item("manualRHitchance").GetValue<StringList>().SelectedIndex == 2);
+            var mediumAuto = (Menu.Item("manualRHitchance").GetValue<StringList>().SelectedIndex == 0);
+            var highAuto = (Menu.Item("manualRHitchance").GetValue<StringList>().SelectedIndex == 1);
+            if (R.IsReady())
             {
-                if (medium && hitChance >= HitChance.Medium)
+                //Check YasuoWall
+                CollisionableObjects[] collisionCheck = new CollisionableObjects[1];
+                collisionCheck[0] = CollisionableObjects.YasuoWall;
+                HitChance hitChance = R.GetPrediction(target, false, -1, collisionCheck).Hitchance;
+                SharpDX.Vector3 endPosition = R.GetPrediction(target, false, Player.Distance(target.Position), collisionCheck).CastPosition.Extend(Player.Position, -(600));
+                //Tweak hitchance
+                if (hitChance == HitChance.OutOfRange || hitChance == HitChance.Low || hitChance == HitChance.Immobile)
                 {
-                    R.Cast(endPosition);
+                    hitChance = HitChance.Medium;
                 }
-                if (high && hitChance >= HitChance.High)
+                //Check for spellshields
+                if (!target.HasBuff("summonerbarrier") || !target.HasBuff("BlackShield") || !target.HasBuff("SivirShield") || !target.HasBuff("BansheesVeil") || !target.HasBuff("ShroudofDarkness"))
                 {
-                    R.Cast(endPosition);
-                }
-                if (veryhigh && hitChance >= HitChance.VeryHigh)
-                {
-                    R.Cast(endPosition);
+                    //in combo & custom combo casts hitchance
+                    if (medium && hitChance >= HitChance.Medium && !Menu.Item("manualR").GetValue<KeyBind>().Active)
+                    {
+                        R.Cast(endPosition);
+                    }
+                    if (high && hitChance >= HitChance.High && !Menu.Item("manualR").GetValue<KeyBind>().Active)
+                    {
+                        R.Cast(endPosition);
+                    }
+                    if (veryhigh && hitChance >= HitChance.VeryHigh && !Menu.Item("manualR").GetValue<KeyBind>().Active)
+                    {
+                        R.Cast(endPosition);
+                    }
+                    //manual casts hitchance
+                    if (mediumAuto && hitChance >= HitChance.Medium && Menu.Item("manualR").GetValue<KeyBind>().Active)
+                    {
+                        R.Cast(endPosition);
+                    }
+                    if (highAuto && hitChance >= HitChance.High && Menu.Item("manualR").GetValue<KeyBind>().Active)
+                    {
+                        R.Cast(endPosition);
+                    }
+                    if (veryhighAuto && hitChance >= HitChance.VeryHigh && Menu.Item("manualR").GetValue<KeyBind>().Active)
+                    {
+                        R.Cast(endPosition);
+                    }
                 }
             }
         }
@@ -706,63 +794,74 @@ namespace MathFizz
             if (!m.IsValidTarget())
             {
                 m = TargetSelector.GetTarget(530, TargetSelector.DamageType.Magical);
-            }
-            if (ObjectManager.Player.ManaPercent <= Menu.Item("harassmana").GetValue<Slider>().Value)
-            {
-                return;
-            }
-            #region EWQ Combo
-            //EWQ Combo
-            if (Menu.Item("useEWQ").GetValue<bool>())
-            {
-                if (Q.IsReady())
+                if (!m.IsValidTarget())
                 {
-                    //Do EWQ
-                    if (Player.Mana >= Q.ManaCost + E.ManaCost + W.ManaCost || enoughManaEWQ)
+                    m = TargetSelector.GetTarget(R.Range, TargetSelector.DamageType.Physical);
+                    if (!m.IsValidTarget())
                     {
-                        if (useE && E.Instance.Name == "FizzJump" && Player.Distance(m.Position) <= 530)
-                        {
-                            enoughManaEWQ = true;
-                            startPos = Player.Position;
-                            SharpDX.Vector3 harassEcastPosition = E.GetPrediction(m, false, 1).CastPosition;
-                            E.Cast(harassEcastPosition);
-                            //Delay for fizzjumptwo
-                            Utility.DelayAction.Add((365 - ping), () => E.Cast(E.GetPrediction(m, false, 1).CastPosition.Extend(startPos, -135)));
-                        }
-                        if (useW && (Player.Distance(m.Position) <= 175))
-                        {
-                            W.Cast();
-                            enoughManaEWQ = false;
-                        }
-                    }
-                    //Do EQ
-                    if (Player.Mana >= Q.ManaCost + E.ManaCost || enoughManaEQ)
-                    {
-                        if (useE && E.Instance.Name == "FizzJump" && Player.Distance(m.Position) <= 530)
-                        {
-                            enoughManaEQ = true;
-                            startPos = Player.Position;
-                            SharpDX.Vector3 harassEcastPosition3 = E.GetPrediction(m, false, 1).CastPosition;
-                            E.Cast(harassEcastPosition3);
-                            //Delay for fizzjumptwo
-                            Utility.DelayAction.Add((365 - ping), () => 
-                            {
-                                E.Cast(E.GetPrediction(m, false, 1).CastPosition.Extend(startPos, -135));
-                                enoughManaEQ = false;
-                            });
-                        }
+                        m = TargetSelector.GetTarget(R.Range, TargetSelector.DamageType.True);
                     }
                 }
             }
-            #endregion
-            //Basic Harass WQ AA E
-            else
+            if (m.IsValidTarget())
             {
-                if (useW && (Player.Distance(m.Position) <= Q.Range)) W.Cast();
-                if (useQ && (Player.Distance(m.Position) <= Q.Range))
+                if (ObjectManager.Player.ManaPercent <= Menu.Item("harassmana").GetValue<Slider>().Value)
                 {
-                    harassQCastedPosition = Player.Position;
-                    Q.Cast(m);
+                    return;
+                }
+                #region EWQ Combo
+                //EWQ Combo
+                if (Menu.Item("useEWQ").GetValue<bool>())
+                {
+                    if (Q.IsReady())
+                    {
+                        //Do EWQ
+                        if (Player.Mana >= Q.ManaCost + E.ManaCost + W.ManaCost || enoughManaEWQ)
+                        {
+                            if (useE && E.Instance.Name == "FizzJump" && Player.Distance(m.Position) <= 530)
+                            {
+                                enoughManaEWQ = true;
+                                startPos = Player.Position;
+                                SharpDX.Vector3 harassEcastPosition = E.GetPrediction(m, false, 1).CastPosition;
+                                E.Cast(harassEcastPosition);
+                                //Delay for fizzjumptwo
+                                Utility.DelayAction.Add((365 - ping), () => E.Cast(E.GetPrediction(m, false, 1).CastPosition.Extend(startPos, -135)));
+                            }
+                            if (useW && (Player.Distance(m.Position) <= 175))
+                            {
+                                W.Cast();
+                                enoughManaEWQ = false;
+                            }
+                        }
+                        //Do EQ
+                        if (Player.Mana >= Q.ManaCost + E.ManaCost || enoughManaEQ)
+                        {
+                            if (useE && E.Instance.Name == "FizzJump" && Player.Distance(m.Position) <= 530)
+                            {
+                                enoughManaEQ = true;
+                                startPos = Player.Position;
+                                SharpDX.Vector3 harassEcastPosition3 = E.GetPrediction(m, false, 1).CastPosition;
+                                E.Cast(harassEcastPosition3);
+                                //Delay for fizzjumptwo
+                                Utility.DelayAction.Add((365 - ping), () =>
+                                {
+                                    E.Cast(E.GetPrediction(m, false, 1).CastPosition.Extend(startPos, -135));
+                                    enoughManaEQ = false;
+                                });
+                            }
+                        }
+                    }
+                }
+                #endregion
+                //Basic Harass WQ AA E
+                else
+                {
+                    if (useW && (Player.Distance(m.Position) <= Q.Range)) W.Cast();
+                    if (useQ && (Player.Distance(m.Position) <= Q.Range))
+                    {
+                        harassQCastedPosition = Player.Position;
+                        Q.Cast(m);
+                    }
                 }
             }
         }
@@ -775,74 +874,102 @@ namespace MathFizz
             var useW = (W.IsReady());
             var useE = (E.IsReady() && Menu.Item("useEcombo").GetValue<bool>());
             var useR = (R.IsReady());
+            var UseEOnlyAfterAA = Menu.Item("UseEOnlyAfterAA").GetValue<bool>();
             var useZhonya = (Menu.Item("useZhonya").GetValue<bool>() && zhonya.IsReady() && zhonya.IsOwned());
             var gapclose = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 0);
             var ondash = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 1);
             var afterdash = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 2);
             var realondash = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 3);
             var m = SelectedTarget;
-            if (!m.IsValidTarget()) 
+            if (!m.IsValidTarget())
             {
-                m = TargetSelector.GetTarget(1275, TargetSelector.DamageType.Magical);
-            }
-            //Only use when R is Ready & Q is Ready
-            if (ondash && !m.IsZombie && useR && Player.Distance(m.Position) <= 550)
-            {
-                if (useQ && Player.Distance(m.Position) <= Q.Range)
+                m = TargetSelector.GetTarget(R.Range, TargetSelector.DamageType.Magical);
+                if (!m.IsValidTarget())
                 {
-                    if (useR && m.HealthPercent >= Menu.Item("targetMinHPforR").GetValue<Slider>().Value)
+                    m = TargetSelector.GetTarget(R.Range, TargetSelector.DamageType.Physical);
+                    if (!m.IsValidTarget())
                     {
-                        CastRSmart(m);
-                        lastRCastTick = Game.Time;
+                        m = TargetSelector.GetTarget(R.Range, TargetSelector.DamageType.True);
                     }
-                    Q.Cast(m);
                 }
-                if (useW && Player.Distance(m.Position) <= 540)
-                {
-                    W.Cast();
-                }
-                if (hydra.IsOwned() && Player.Distance(m) < hydra.Range && hydra.IsReady() && !E.IsReady()) hydra.Cast();
-                if (tiamat.IsOwned() && Player.Distance(m) < tiamat.Range && tiamat.IsReady() && !E.IsReady()) tiamat.Cast();
             }
-            //Only use when R is Ready & Q is Ready
-            if (afterdash && !m.IsZombie && useR)
+            if(m.IsValidTarget())
             {
-
-                if (useW && Player.Distance(m.Position) <= 540) W.Cast();
-                if (useQ && Player.Distance(m.Position) <= Q.Range)
+                //Only use when R is Ready & Q is Ready and target is valid
+                if (ondash && !m.IsZombie && useR && Player.Distance(m.Position) <= 550)
                 {
-                    Q.Cast(m);
-                    Utility.DelayAction.Add((540 - ping), () => {
+                    if (useQ && Player.Distance(m.Position) <= Q.Range)
+                    {
                         if (useR && m.HealthPercent >= Menu.Item("targetMinHPforR").GetValue<Slider>().Value)
                         {
                             CastRSmart(m);
                             lastRCastTick = Game.Time;
                         }
-                    });
+                        Q.Cast(m);
+                    }
+                    if (useW && Player.Distance(m.Position) <= 540)
+                    {
+                        W.Cast();
+                    }
+                    if (hydra.IsOwned() && Player.Distance(m) < hydra.Range && hydra.IsReady() && !E.IsReady()) hydra.Cast();
+                    if (tiamat.IsOwned() && Player.Distance(m) < tiamat.Range && tiamat.IsReady() && !E.IsReady()) tiamat.Cast();
                 }
-                if (hydra.IsOwned() && Player.Distance(m) < hydra.Range && hydra.IsReady() && !E.IsReady()) hydra.Cast();
-                if (tiamat.IsOwned() && Player.Distance(m) < tiamat.Range && tiamat.IsReady() && !E.IsReady()) tiamat.Cast();
-            }
-            if (gapclose && !m.IsZombie && useR)
-            {
-                if (useR && m.HealthPercent >= Menu.Item("targetMinHPforR").GetValue<Slider>().Value)
+                //Only use when R is Ready & Q is Ready
+                if (afterdash && !m.IsZombie && useR)
                 {
-                    CastRSmart(m);
-                    lastRCastTick = Game.Time;
-                }
-                if (useQ) Q.Cast(m);
-                if (useW && Player.Distance(m.Position) <= 540) W.Cast();
-                if (hydra.IsOwned() && Player.Distance(m) < hydra.Range && hydra.IsReady() && !E.IsReady()) hydra.Cast();
-                if (tiamat.IsOwned() && Player.Distance(m) < tiamat.Range && tiamat.IsReady() && !E.IsReady()) tiamat.Cast();
-            }
-            if (realondash && !m.IsZombie && useR && Player.Distance(m.Position) <= 550)
-            {
-                Q.Cast(m);
-                if (useR && m.HealthPercent >= Menu.Item("targetMinHPforR").GetValue<Slider>().Value)
-                {
-                        if( Player.Distance(m.Position) <= 350)
+
+                    if (useW && Player.Distance(m.Position) <= 540) W.Cast();
+                    if (useQ && Player.Distance(m.Position) <= Q.Range)
+                    {
+                        Q.Cast(m);
+                        Utility.DelayAction.Add((540 - ping), () =>
                         {
-                            Utility.DelayAction.Add((500-ping), () => { 
+                            if (useR && m.HealthPercent >= Menu.Item("targetMinHPforR").GetValue<Slider>().Value)
+                            {
+                                CastRSmart(m);
+                                lastRCastTick = Game.Time;
+                            }
+                        });
+                    }
+                    if (hydra.IsOwned() && Player.Distance(m) < hydra.Range && hydra.IsReady() && !E.IsReady()) hydra.Cast();
+                    if (tiamat.IsOwned() && Player.Distance(m) < tiamat.Range && tiamat.IsReady() && !E.IsReady()) tiamat.Cast();
+                }
+                if (gapclose && !m.IsZombie && useR)
+                {
+                    if (useR && m.HealthPercent >= Menu.Item("targetMinHPforR").GetValue<Slider>().Value)
+                    {
+                        //if enemy is not facing us, check via movespeed
+                        if (!Utility.IsFacing(m, Player))
+                        {
+                            if (Player.Distance(m.Position) < (R.Range - m.MoveSpeed) - (165))
+                            {
+                                CastRSmart(m);
+                                lastRCastTick = Game.Time;
+                            }
+                        }
+                        else
+                        {
+                            if (Player.Distance(m.Position) <= (R.Range - 200))
+                            {
+                                CastRSmart(m);
+                                lastRCastTick = Game.Time;
+                            }
+                        }
+                    }
+                    if (useQ) Q.Cast(m);
+                    if (useW && Player.Distance(m.Position) <= 540) W.Cast();
+                    if (hydra.IsOwned() && Player.Distance(m) < hydra.Range && hydra.IsReady() && !E.IsReady()) hydra.Cast();
+                    if (tiamat.IsOwned() && Player.Distance(m) < tiamat.Range && tiamat.IsReady() && !E.IsReady()) tiamat.Cast();
+                }
+                if (realondash && !m.IsZombie && useR && Player.Distance(m.Position) <= 550)
+                {
+                    if (useQ) Q.Cast(m);
+                    if (useR && m.HealthPercent >= Menu.Item("targetMinHPforR").GetValue<Slider>().Value)
+                    {
+                        if (Player.Distance(m.Position) <= 380)
+                        {
+                            Utility.DelayAction.Add((500 - ping), () =>
+                            {
                                 CastRSmart(m);
                                 lastRCastTick = Game.Time;
                             });
@@ -852,47 +979,48 @@ namespace MathFizz
                             CastRSmart(m);
                             lastRCastTick = Game.Time;
                         }
-                }
-                if (useW && Player.Distance(m.Position) <= 540)
-                {
-                    W.Cast();
-                }
-                if (hydra.IsOwned() && Player.Distance(m) < hydra.Range && hydra.IsReady() && !E.IsReady()) hydra.Cast();
-                if (tiamat.IsOwned() && Player.Distance(m) < tiamat.Range && tiamat.IsReady() && !E.IsReady()) tiamat.Cast();
-            }
-            if (useW && Player.Distance(m.Position) <= 540) W.Cast();
-            if (useQ && Player.Distance(m.Position) <= Q.Range) Q.Cast(m);
-            if (E.Instance.Name == "FizzJump" && useE && Player.Distance(m.Position) > 300 && Player.Distance(m.Position) <= E.Range+270 && !W.IsReady() && !Q.IsReady() && !R.IsReady())
-            {
-                castPosition = E.GetPrediction(m, false, 1).CastPosition;
-                E.Cast(castPosition);
-                Utility.DelayAction.Add((680 - ping), () =>
-                {
-                    if (!W.IsReady() && !Q.IsReady() && Player.Distance(m.Position) > 330 && Player.Distance(m.Position) <= 400 + 270)
-                    {
-                        E.Cast(E.GetPrediction(m, false, 1).CastPosition);
                     }
-                });
-                if (ondash && useZhonya && canCastZhonyaOnDash)
-                {
-                    Utility.DelayAction.Add((1690 - ping), () =>
+                    if (useW && Player.Distance(m.Position) <= 540)
                     {
-                        zhonya.Cast();
-                    });
+                        W.Cast();
+                    }
+                    if (hydra.IsOwned() && Player.Distance(m) < hydra.Range && hydra.IsReady() && !E.IsReady()) hydra.Cast();
+                    if (tiamat.IsOwned() && Player.Distance(m) < tiamat.Range && tiamat.IsReady() && !E.IsReady()) tiamat.Cast();
                 }
-                if (gapclose && useZhonya && canCastZhonyaOnDash)
+                if (useW && Player.Distance(m.Position) <= 540) W.Cast();
+                if (useQ && Player.Distance(m.Position) <= Q.Range) Q.Cast(m);
+                if (!UseEOnlyAfterAA && E.Instance.Name == "FizzJump" && useE && Player.Distance(m.Position) > 300 && Player.Distance(m.Position) <= E.Range + 270 && !W.IsReady() && !Q.IsReady() && !R.IsReady())
                 {
-                    Utility.DelayAction.Add((1690 - ping), () =>
+                    castPosition = E.GetPrediction(m, false, 1).CastPosition;
+                    E.Cast(castPosition);
+                    Utility.DelayAction.Add((680 - ping), () =>
                     {
-                        zhonya.Cast();
+                        if (!W.IsReady() && !Q.IsReady() && Player.Distance(m.Position) > 330 && Player.Distance(m.Position) <= 400 + 270)
+                        {
+                            E.Cast(E.GetPrediction(m, false, 1).CastPosition);
+                        }
                     });
-                }
-                if (afterdash && useZhonya && canCastZhonyaOnDash)
-                {
-                    Utility.DelayAction.Add((1690 - ping), () =>
+                    if (ondash && useZhonya && canCastZhonyaOnDash)
                     {
-                        zhonya.Cast();
-                    });
+                        Utility.DelayAction.Add((2150 - ping), () =>
+                        {
+                            zhonya.Cast();
+                        });
+                    }
+                    if (gapclose && useZhonya && canCastZhonyaOnDash)
+                    {
+                        Utility.DelayAction.Add((2150 - ping), () =>
+                        {
+                            zhonya.Cast();
+                        });
+                    }
+                    if (afterdash && useZhonya && canCastZhonyaOnDash)
+                    {
+                        Utility.DelayAction.Add((2150 - ping), () =>
+                        {
+                            zhonya.Cast();
+                        });
+                    }
                 }
             }
         }
@@ -918,7 +1046,23 @@ namespace MathFizz
                     if (R.IsReady() && !E.IsReady())
                     {
                         //Use R
-                        CastRSmart(m);
+                        //if enemy is not facing us, check via movespeed
+                        if (!Utility.IsFacing(m, Player))
+                        {
+                            if (Player.Distance(m.Position) < (R.Range - m.MoveSpeed) - (165))
+                            {
+                                CastRSmart(m);
+                                lastRCastTick = Game.Time;
+                            }
+                        }
+                        else
+                        {
+                            if (Player.Distance(m.Position) <= R.Range)
+                            {
+                                CastRSmart(m);
+                                lastRCastTick = Game.Time;
+                            }
+                        }
                     }
                     //Use W
                     if (W.IsReady() && !E.IsReady())
@@ -983,7 +1127,24 @@ namespace MathFizz
                     if (R.IsReady() && !Q.IsReady())
                     {
                         //Use R
-                        Utility.DelayAction.Add((540 - ping), () => CastRSmart(m));
+                        Utility.DelayAction.Add((540 - ping), () => {
+                            if (!Utility.IsFacing(m, Player))
+                            {
+                                if (Player.Distance(m.Position) < (R.Range - m.MoveSpeed) - (165))
+                                {
+                                    CastRSmart(m);
+                                    lastRCastTick = Game.Time;
+                                }
+                            }
+                            else
+                            {
+                                if (Player.Distance(m.Position) <= R.Range)
+                                {
+                                    CastRSmart(m);
+                                    lastRCastTick = Game.Time;
+                                }
+                            }
+                        });
                     }
                     if (E.IsReady() && Player.LastCastedSpellName() == "FizzMarinerDoom")
                     {
@@ -1017,7 +1178,7 @@ namespace MathFizz
             {
                 Orbwalking.Orbwalk(m ?? null, Game.CursorPos);
                 var distance = Player.Distance(m.Position);
-                if (distance <= (E.Range + F.Range + 280))
+                if (distance <= (E.Range + F.Range + 165))
                 {
                     //E
                     if (E.IsReady() && E.Instance.Name == "FizzJump")
