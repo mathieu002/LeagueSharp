@@ -99,8 +99,11 @@ namespace MathFizz
             combo.AddItem(new MenuItem("HitChancewR", "R hitchance").SetValue(new StringList(new[] { "Medium", "High", "Very High" })));
             combo.AddItem(new MenuItem("targetMinHPforR", "Minimum enemy HP(in %) to use R").SetValue(new Slider(35)).SetTooltip("Minimum HP percentage the enemy needs for R to be casted"));
             combo.AddItem(new MenuItem("useZhonya", "Use Zhonya in combo (Recommended for lategame)").SetValue(true).SetTooltip("Will use Zhonya if owned and active, on each kind of combo. Cannot use zhonya if 'Use E in combo' is not active."));
+            combo.AddItem(new MenuItem("useQcombo", "Use Q in combo").SetValue(true));
+            combo.AddItem(new MenuItem("useWcombo", "Use W in combo").SetValue(true));
             combo.AddItem(new MenuItem("useEcombo", "Use E in combo").SetValue(true).SetTooltip("Will be casted after an autoattack as priority. Unless Q, W and R are on cooldown and your target is out of autoattack range. Cannot use zhonya if 'Use E in combo' is not active."));
             combo.AddItem(new MenuItem("UseEOnlyAfterAA", "Use E only after an autoattack").SetValue(false).SetTooltip("Will not use E without having done an autoattack first."));
+            combo.AddItem(new MenuItem("useRcombo", "Use R in combo").SetValue(true));
             //Harass Menu
             var harass = new Menu("Harass", "Harass");
             Menu.AddSubMenu(harass);
@@ -870,10 +873,10 @@ namespace MathFizz
         #region Combo
         private static void Combo()
         {
-            var useQ = (Q.IsReady());
-            var useW = (W.IsReady());
+            var useQ = (Q.IsReady() && Menu.Item("useQcombo").GetValue<bool>());
+            var useW = (W.IsReady() && Menu.Item("useWcombo").GetValue<bool>());
             var useE = (E.IsReady() && Menu.Item("useEcombo").GetValue<bool>());
-            var useR = (R.IsReady());
+            var useR = (R.IsReady() && Menu.Item("useRcombo").GetValue<bool>());
             var UseEOnlyAfterAA = Menu.Item("UseEOnlyAfterAA").GetValue<bool>();
             var useZhonya = (Menu.Item("useZhonya").GetValue<bool>() && zhonya.IsReady() && zhonya.IsOwned());
             var gapclose = (Menu.Item("ComboMode").GetValue<StringList>().SelectedIndex == 0);
